@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>d3.js with leaflet.js</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://d19vzq90twjlae.cloudfront.net/leaflet-0.7/leaflet.css" />
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+
+  <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+  <script src="https://d3js.org/d3.v3.min.js"></script>
+  <script src="https://d3js.org/topojson.v0.min.js"></script>
+  <script src="https://d19vzq90twjlae.cloudfront.net/leaflet-0.7/leaflet.js"></script>
+  <script src="data.js"></script>
+  <style type="text/css">
+
+    .municipality {
+      fill: #eee;
+      stroke: #999;
+      opacity: 0.7;
+    }
+    .municipality:hover {
+      fill: #ddd;
+    }
+    body{
+      margin: 0px;
+      width:100vw;
+      height:100vh;
+    }
+
+    div.tooltip {
+      position: absolute;
+      text-align: center;
+      /*width: 150px;*/
+      padding: 2px;
+      font: 14px;
+      background: lightsteelblue;
+      border: 0px;
+      border-radius: 8px;
+      pointer-events: none;
+      font-family: "Microsoft Yahei"; 
+      z-index:200;
+    }
+    #table-modal .modal-dialog{
+      max-width: 90%;
+    }
+  </style>
+
+</head>
+<body>
+
+
+  <!-- Modal -->
+  <div class="modal fade" id="table-modal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLongTitle" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLongTitle">확진자 명단</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">성별</th>
+                <th scope="col">나이</th>
+                <th scope="col">확진날짜</th>
+                <th scope="col">격리병원</th>
+                <th scope="col">퇴원날짜</th>
+                <th scope="col">관련정보</th>
+              </tr>
+            </thead>
+            <tbody id = "ttbody">
+            </tbody>
+          </table>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="map" style="width: 100%; height: 100%;"></div>
+
+  <script type="text/javascript">
+    //tooltip
+    var tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+    // 색 라이너
+    var color = d3.scale.linear()
+    .domain([0, person_info.length/2])
+    .range([d3.rgb("yellow"),d3.rgb("red")]);
+
+    // 지도 관련 파라미터
+    var map = L.map('map').setView([37.5665, 126.9780], 9);
+    mapLink = '<a href="http://openstreetmap.org">OpenStreetMap</a>';
+    L.tileLayer(
+      'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution:  mapLink, //'&copy; ' +
+            maxZoom: 18,
+          }).addTo(map);
+    var svg = d3.select(map.getPanes().overlayPane).append("svg"),
+    gs = svg.append("g").attr("class", "leaflet-zoom-hide");
+    mp_g = svg.append("g").attr("class", "leaflet-zoom-hide");
+
+    // 지도 
+    d3.json("gg.json", function(error, kor) {
+      var cities = {};
+      var personcities = {};
+      //지역별 환자 정보 준비
+      /* arange by cities, count number of person */ 
+      person_info.forEach(function(d,i) {
+        if(d.ploc.replace(" ","") in cities){
+          cities[d.ploc.replace(" ","")]++;
+        }
+        else{
+          cities[d.ploc.replace(" ","")] = 1;
+          personcities[d.ploc.replace(" ","")] = [];
+        }
+        personcities[d.ploc.replace(" ","")].push(i);
+      });
+      // 지도 임포트
+      var municipalities = topojson.object(kor, kor.objects['skorea_municipalities']);
+      var transform = d3.geo.transform({point: projectPoint}),
+      path = d3.geo.path().projection(transform);
+
+      //지도 그리기
+      var feature = gs.selectAll("path")
+      .data(municipalities.geometries)
+      .enter().append("path").attr('d', path)
+      .attr('class', 'municipality')
+      .style("fill",function(d){
+          // console.log(d.properties.locations);
+          if(d.properties.locations in cities) return color(cities[d.properties.locations])
+            else return ""
+          })
+      .on("mouseover", function(d) {
+       tooltip.transition()
+       .duration(200)
+       .style("opacity", .9);
+       pnum = d.properties.locations in cities? cities[d.properties.locations]:0;
+       tooltip.html("<span>" + d.properties.locations +"</span><br><span> 확진자수: " + pnum + "인</span>")
+       .style("left", (d3.event.pageX) + "px")
+       .style("top", (d3.event.pageY - 28) + "px");
+     })
+      .on("mouseout", function(d) {
+       tooltip.transition()
+       .duration(500)
+       .style("opacity", 0);
+     })
+      .on("click",function(d){
+       if(d.properties.locations in cities)
+       {
+        var results_txt = "";
+        personcities[d.properties.locations].forEach(function(d,i) {
+          let sex = person_info[d].psex;
+          let age = person_info[d].page;
+          let loc = person_info[d].hloc;
+          let info = person_info[d].pinfo.split('/ ').join("<br/>'. ");
+          let no = person_info[d].pno;
+              // let ps = person_info[d].ps;
+              let ok = person_info[d].pok == " "? "-":person_info[d].pok;
+              let cof = person_info[d].pcof;
+
+              results_txt += "<tr><td>"+no+"</td><td>"+sex+"</td><td>"+age+"</td><td>"+cof+"</td><td>"+loc+"</td><td>"+ok+"</td><td>"+info+"</td></tr>";
+            });
+        d3.select("#ttbody").html(results_txt);
+        $('#table-modal').modal('show');
+      }
+      else return null
+    });  
+
+      // 맵 스크롤 변화 시
+      map.on("viewreset", reset);
+      reset();
+      // 병원 포인트
+      add_hospital();
+      myPosition();
+      function reset() {
+        var bounds = path.bounds(municipalities),
+        topLeft = bounds[0],
+        bottomRight = bounds[1];
+
+        svg.attr("width", bottomRight[0] - topLeft[0])
+        .attr("height", bottomRight[1] - topLeft[1])
+        .style("left", topLeft[0] + "px")
+        .style("top", topLeft[1] + "px");
+
+        gs.attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
+        
+        mp_g.attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
+
+        feature.attr("d", path)
+      }
+    });
+    function projectPoint(x, y) {
+      var point = map.latLngToLayerPoint(new L.LatLng(y, x));
+      this.stream.point(point.x, point.y);
+    }
+
+
+    function add_hospital(){
+      var hostpitals = {};
+      var personhostpitals = {};
+      /* Add a LatLng object to each item in the dataset */
+      person_info.forEach(function(d,i) {
+        if(d.hloc in hostpitals){
+          hostpitals[d.hloc][1]++;
+        }
+        else{
+          hostpitals[d.hloc] = [];
+          hostpitals[d.hloc].push(new L.LatLng(d.hlat,d.hlng));
+          hostpitals[d.hloc].push(1);
+          personhostpitals[d.hloc] = [];
+        }
+        personhostpitals[d.hloc].push(i);
+      });
+      
+      var hps = [];
+
+      for(var key in hostpitals){
+        h = {};
+        h.hloc = key;
+        h.LatLng = hostpitals[key][0];
+        // console.log(h.LatLng)
+        h.pnum = hostpitals[key][1];
+
+        hps.push(h);
+      }
+
+      var feature = gs.selectAll("circle")
+      .data(hps)
+      .enter().append("circle")
+      .style("stroke", "black")  
+      .style("opacity", 1) 
+      .style("fill", "red")
+      .attr("r", 5)
+      .on("click",function(d){
+        var results_txt = "";
+        personhostpitals[d.hloc].forEach(function(d,i) {
+          let sex = person_info[d].psex;
+          let age = person_info[d].page;
+          let loc = person_info[d].hloc;
+          let info = person_info[d].pinfo.split('/ ').join("<br/>'. ");
+          let no = person_info[d].pno;
+              // let ps = person_info[d].ps;
+              let ok = person_info[d].pok == " "? "-":person_info[d].pok;
+              let cof = person_info[d].pcof;
+
+              results_txt += "<tr><td>"+no+"</td><td>"+sex+"</td><td>"+age+"</td><td>"+cof+"</td><td>"+loc+"</td><td>"+ok+"</td><td>"+info+"</td></tr>";
+            });
+        d3.select("#ttbody").html(results_txt);
+        $('#table-modal').modal('show');
+      })
+      .on("mouseover", function(d) {
+       tooltip.transition()
+       .duration(200)
+       .style("opacity", .9);
+       tooltip.html("<span>격리시설: " + d.hloc +"</span><br><span> 격리인원: " + d.pnum + "인</span>")
+       .style("left", (d3.event.pageX) + "px")
+       .style("top", (d3.event.pageY - 28) + "px");
+     })
+      .on("mouseout", function(d) {
+       tooltip.transition()
+       .duration(500)
+       .style("opacity", 0);
+     });  
+
+      map.on("viewreset", update);
+      update();
+
+      function update() {
+        feature.attr("transform", 
+          function(d) { 
+            return "translate("+ 
+            map.latLngToLayerPoint(d.LatLng).x +","+ 
+            map.latLngToLayerPoint(d.LatLng).y +")";
+          }
+          )
+      }
+    }
+
+    function myPosition(){
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition);
+      } else { 
+        alert("has a pro")
+      }
+
+ 
+      function showPosition(position) {
+        x = (position.coords.latitude).toFixed(6);
+        y = (position.coords.longitude).toFixed(6);
+        mp = [{LatLng:new L.LatLng(x,y)}];
+        console.log(mp)
+        var myP = mp_g.selectAll("circle")
+        .data(mp)
+        .enter().append("circle")
+        .style("stroke", "black")  
+        .style("opacity", 1) 
+        .style("fill", "blue")
+        .attr("r", 5)
+        // console.log(myP)
+        map.on("viewreset", myupdate);
+        myupdate();
+
+
+        function myupdate() {
+          myP.attr("transform", 
+            function(d) { 
+              return "translate("+ 
+              map.latLngToLayerPoint(d.LatLng).x +","+ 
+              map.latLngToLayerPoint(d.LatLng).y +")";
+            }
+            )
+        }
+      }
+
+    }
+  </script>
+</body>
+</html>
