@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>d3.js with leaflet.js</title>
+  <title>코로나 감염 상황</title>
   <meta charset="utf-8">
-  <link rel="stylesheet" href="./leaflet.css" />
+  <link rel="stylesheet" href="./asset/css/leaflet.css" />
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
 
   <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
@@ -41,6 +41,9 @@
     #table-modal .modal-dialog{
       max-width: 90%;
     }
+    tr{
+      text-align: center;
+    }
   </style>
 
 </head>
@@ -64,6 +67,8 @@
                 <th scope="col">#</th>
                 <th scope="col">성별</th>
                 <th scope="col">나이</th>
+                <th scope="col">국적</th>
+                <th scope="col">거주지</th>
                 <th scope="col">확진날짜</th>
                 <th scope="col">격리병원</th>
                 <th scope="col">퇴원날짜</th>
@@ -86,8 +91,8 @@
 
   <script src="https://d3js.org/d3.v3.min.js"></script>
   <script src="https://d3js.org/topojson.v0.min.js"></script>
-  <script src="./data.js"></script>
-  <script src="./leaflet.js"></script>
-  <script src="./corona19.js"></script>
+  <script src="./asset/js/data.js"></script>
+  <script src="./asset/js/leaflet.js"></script>
+  <script src="./asset/js/corona19.js"></script>
 </body>
 </html>
