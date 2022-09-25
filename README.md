@@ -1,4 +1,4 @@
-# Corona19 Visualmap
+# COVID19 Visualmap
 
 코로나 수도권 데이터 맵시각화 자료
 
